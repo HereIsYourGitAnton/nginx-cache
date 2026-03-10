@@ -1,0 +1,15 @@
+services:
+  api-proxy:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    environment:
+      - API_TARGET=${API_TARGET}
+      - API_HOST=${API_HOST}
+    volumes:
+      - ./templates:/etc/nginx/templates:ro
+      - cache_data:/var/cache/nginx
+    restart: always
+
+volumes:
+  cache_data:
