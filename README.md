@@ -21,6 +21,17 @@ cp .env.example .env
 docker compose up -d
 ```
 
+### Start without a `.env` file
+
+You can also pass the required environment variables inline (useful for one-off runs):
+
+```bash
+API_TARGET="https://some.api.com/" \
+API_HOST="some.api.com" \
+PORT=8080 \
+docker compose up -d
+```
+
 4. Send requests via the proxy:
    - Proxy listens on `http://localhost:${PORT:-8080}`
 
