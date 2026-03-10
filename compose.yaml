@@ -3,7 +3,7 @@ services:
     image: nginx:alpine
     container_name: ${API_HOST}-proxy
     ports:
-      - "8080:80"
+      - "${PORT:-8080}:80"
     environment:
       - API_TARGET=${API_TARGET}
       - API_HOST=${API_HOST}
