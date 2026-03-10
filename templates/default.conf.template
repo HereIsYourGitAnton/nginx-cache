@@ -1,43 +1,48 @@
 # Define the cache zone
 proxy_cache_path /var/cache/nginx levels=1:2 keys_zone=api_cache:10m max_size=1g inactive=60m use_temp_path=off;
 
+# Custom log format to show Hit/Miss/Bypass in 'docker logs'
+log_format cache_log '[$time_local] $remote_addr - $request_method $status '
+                     'Cache: $upstream_cache_status | URL: $request_uri';
+
 server {
     listen 80;
+    access_log /dev/stdout cache_log;
 
     location / {
-        # 1. Method Restriction
-        # If it's NOT a GET request, bypass the cache and go straight to the API
+        # 1. Method Restriction: Only GET is cached
         set $skip_cache 0;
         if ($request_method != GET) {
             set $skip_cache 1;
         }
 
-        # 2. Set the Target API from Environment Variable
-        # We use the variable ${API_TARGET} which will be injected by Docker
+        # 2. Proxy Setup
         proxy_pass ${API_TARGET};
-
-        # 3. Header Handling
-        # We extract the domain from the URL to set the Host header correctly
         proxy_set_header Host ${API_HOST};
         proxy_pass_request_headers on;
-        
-        # 4. Caching Logic
+
+        # 3. Caching Logic
         proxy_cache api_cache;
         proxy_cache_key "$scheme$request_method$host$request_uri$http_authorization";
         
-        # Bypass cache if it's not a GET or if X-Purge header is present
+        # Bypass cache on non-GET or X-Purge header
         proxy_cache_bypass $skip_cache $http_x_purge;
         proxy_no_cache $skip_cache $http_x_purge;
 
-        # Standard caching rules for successful GETs
         proxy_cache_valid 200 302 10m;
         proxy_ignore_headers Cache-Control Vary;
 
-        # Debugging
+        # 4. Cache Metadata Headers
+        # Map the time the upstream sent the response
         add_header X-Cache-Status $upstream_cache_status;
-        add_header X-Proxy-Method $request_method;
+        add_header X-Cache-Date $upstream_http_date; # Original timestamp from the API
+        
+        # Calculate Age (Current time - Date header)
+        add_header X-Cache-Age $upstream_header_time; 
+
+        # Ensure headers are passed back
+        proxy_pass_header Server;
     }
 
-    # Resolver for dynamic upstream DNS
     resolver 8.8.8.8 valid=30s;
 }
