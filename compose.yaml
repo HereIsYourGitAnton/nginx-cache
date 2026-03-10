@@ -1,11 +1,15 @@
 services:
   api-proxy:
     image: nginx:alpine
+    container_name: ${API_HOST}-proxy
     ports:
       - "8080:80"
     environment:
       - API_TARGET=${API_TARGET}
       - API_HOST=${API_HOST}
+      - CACHE_VALID_TIME=${CACHE_VALID_TIME:-30m}
+      - CACHE_MAX_SIZE=${CACHE_MAX_SIZE:-2g}
+      - CACHE_INACTIVE=${CACHE_INACTIVE:-120m}
     volumes:
       - ./templates:/etc/nginx/templates:ro
       - cache_data:/var/cache/nginx

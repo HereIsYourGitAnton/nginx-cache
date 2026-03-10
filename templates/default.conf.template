@@ -1,7 +1,12 @@
-# Define the cache zone
-proxy_cache_path /var/cache/nginx levels=1:2 keys_zone=api_cache:10m max_size=1g inactive=60m use_temp_path=off;
+# 1. Global Cache Settings (Injected via Docker)
+# CACHE_MAX_SIZE (e.g., 1g) and CACHE_INACTIVE (e.g., 60m)
+proxy_cache_path /var/cache/nginx 
+    levels=1:2 
+    keys_zone=api_cache:10m 
+    max_size=${CACHE_MAX_SIZE} 
+    inactive=${CACHE_INACTIVE} 
+    use_temp_path=off;
 
-# Custom log format to show Hit/Miss/Bypass in 'docker logs'
 log_format cache_log '[$time_local] $remote_addr - $request_method $status '
                      'Cache: $upstream_cache_status | URL: $request_uri';
 
@@ -10,18 +15,18 @@ server {
     access_log /dev/stdout cache_log;
 
     location / {
-        # 1. Method Restriction: Only GET is cached
+        # 2. Method Restriction
         set $skip_cache 0;
         if ($request_method != GET) {
             set $skip_cache 1;
         }
 
-        # 2. Proxy Setup
+        # 3. Proxy Setup
         proxy_pass ${API_TARGET};
         proxy_set_header Host ${API_HOST};
         proxy_pass_request_headers on;
 
-        # 3. Caching Logic
+        # 4. Caching Logic
         proxy_cache api_cache;
         proxy_cache_key "$scheme$request_method$host$request_uri$http_authorization";
         
@@ -29,13 +34,17 @@ server {
         proxy_cache_bypass $skip_cache $http_x_purge;
         proxy_no_cache $skip_cache $http_x_purge;
 
-        proxy_cache_valid 200 302 10m;
+        # 5. Cache Expiration (Injected via Docker)
+        # CACHE_VALID_TIME (e.g., 10m)
+        proxy_cache_valid 200 302 ${CACHE_VALID_TIME};
+        proxy_cache_valid 404 1m;
+        
         proxy_ignore_headers Cache-Control Vary;
 
-        # 4. Cache Metadata Headers
-        # Map the time the upstream sent the response
+        # 6. Metadata Headers
         add_header X-Cache-Status $upstream_cache_status;
         add_header X-Cache-Date $upstream_http_date; # Original timestamp from the API
+        add_header X-Proxy-Target ${API_TARGET};
         
         # Calculate Age (Current time - Date header)
         add_header X-Cache-Age $upstream_header_time; 
@@ -43,6 +52,4 @@ server {
         # Ensure headers are passed back
         proxy_pass_header Server;
     }
-
-    resolver 8.8.8.8 valid=30s;
 }
